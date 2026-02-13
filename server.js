@@ -1,58 +1,54 @@
-require("dotenv").config();
+// ----------------- IMPORTS -----------------
 const express = require("express");
 const cors = require("cors");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY); // Secret key stored in Render environment variable
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-// ✅ CORRECT
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-
+// ----------------- MIDDLEWARE -----------------
 app.use(cors());
 app.use(express.json());
-app.use(express.static("public"));
 
+// ----------------- STRIPE CHECKOUT SESSION -----------------
 app.post("/create-checkout-session", async (req, res) => {
-  const { name, email, amount } = req.body;
-
-  if (!name || !email || !amount || amount <= 0) {
-    return res.status(400).json({ error: "Invalid request data" });
-  }
-
   try {
+    const { total, name, email, date, time } = req.body;
+
+    if (!total || total <= 0) {
+      return res.status(400).json({ error: "Invalid total amount." });
+    }
+
+    // Create Stripe Checkout session
     const session = await stripe.checkout.sessions.create({
-      mode: "payment",
       payment_method_types: ["card"],
-      customer_email: email,
       line_items: [
         {
           price_data: {
             currency: "usd",
             product_data: {
-              name: "Mobile Notary – 20% Deposit",
-              description: `Deposit for ${name}`,
+              name: `Booking for ${name} - ${date} at ${time}`,
             },
-            unit_amount: amount,
+            unit_amount: total, // amount in cents
           },
           quantity: 1,
         },
       ],
-      success_url: "http://localhost:4242/success.html",
-      cancel_url: "http://localhost:4242/booking.html",
+      mode: "payment",
+      success_url: "https:// safeandsecuremobilenotary.com/success.html",
+      cancel_url: " safeandsecuremobilenotary.com/booking.html",
+      customer_email: email,
     });
 
-    res.json({ url: session.url });
+    res.json({ id: session.id });
+
   } catch (err) {
-    console.error("Stripe error:", err);
-    res.status(500).json({ error: "Stripe session failed" });
+    console.error(err);
+    res.status(500).json({ error: "Stripe session creation failed." });
   }
 });
 
-app.listen(4242, () => {
-  console.log("✅ Server running on http://localhost:4242");
+// ----------------- START SERVER -----------------
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
-
-
-
-
-
-
